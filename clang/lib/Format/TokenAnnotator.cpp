@@ -2424,6 +2424,10 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) {
     calculateFormattingInformation(**I);
   }
 
+  if ( Line.Last->TokenText == "//." ) {
+    Line.Affected = false;
+  }
+
   Line.First->TotalLength =
       Line.First->IsMultiline ? Style.ColumnLimit
                               : Line.FirstStartColumn + Line.First->ColumnWidth;
