@@ -380,11 +380,15 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
   // init line ref
   std::string *line = &lines.back();
 
+  // cr count
+  int cr_count = 0;
+
   // for each char...
   for (const auto &c : buffer.getBuffer()) {
     // if carriage return...
     if (c == '\r') {
-      // ignore it
+      // count it
+      ++cr_count;
     }
 
     // else if linefeed...
@@ -410,6 +414,9 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
   std::size_t size_prefix = std::string(NC_LINE_PREFIX).size();
   std::size_t size_ending = std::string(NC_LINE_ENDING).size();
 
+  // use cr
+  bool use_cr = lines.size() ? (((cr_count * 100) / lines.size()) > 50) : false;
+
   // for each line...
   for (const auto &l : lines) {
     // if ends with escape...
@@ -426,9 +433,6 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
       // ending
       merged += NC_LINE_ENDING;
 
-      // add line ending
-      merged += "\n";
-
       // save replacements
       result.second.emplace_back(r1);
       result.second.emplace_back(r2);
@@ -437,8 +441,11 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
     // else...
     else {
       // add line
-      merged += l + "\n";
+      merged += l;
     }
+
+    // add line ending
+    merged += use_cr ? "\r\n" : "\n";
   }
 
   // add null
@@ -447,7 +454,7 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
   // create buffer
   result.first.reset(new StringMemoryBuffer(merged));
 
-  // return 
+  // return
   return result;
 }
 
