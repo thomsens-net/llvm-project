@@ -938,6 +938,9 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.WhitespaceSensitiveMacros.push_back("STRINGIZE");
   LLVMStyle.WhitespaceSensitiveMacros.push_back("PP_STRINGIZE");
   LLVMStyle.WhitespaceSensitiveMacros.push_back("BOOST_PP_STRINGIZE");
+  
+  // for line escapes
+  LLVMStyle.WhitespaceSensitiveMacros.push_back("NC_LINE_ESCAPE");
 
   // Defaults that differ when not C++.
   if (Language == FormatStyle::LK_TableGen) {

@@ -336,6 +336,121 @@ static void outputXML(const Replacements &Replaces,
   outs() << "</replacements>\n";
 }
 
+class StringMemoryBuffer : public MemoryBuffer {
+public:
+  // construct
+  StringMemoryBuffer(const std::string &source) {
+    // copy string
+    buffer = source;
+
+    // init
+    init(&buffer.front(), &buffer.back(), true);
+  }
+
+  MemoryBuffer::BufferKind getBufferKind() const override {
+    // malloc
+    return MemoryBuffer::MemoryBuffer_Malloc;
+  }
+
+private:
+  // internal buffer
+  std::string buffer;
+};
+
+#define NC_LINE_ESCAPE "//."
+#define NC_LINE_PREFIX "#define NC_LINE_BEGIN( \""
+#define NC_LINE_ENDING "NC_LINE_END\" )"
+
+// tokenize the buffer and provide replacements to reverse
+std::pair<std::unique_ptr<llvm::MemoryBuffer>,
+          std::vector<tooling::Replacement>>
+tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
+
+  // init result
+  std::pair<std::unique_ptr<llvm::MemoryBuffer>,
+            std::vector<tooling::Replacement>>
+      result;
+
+  // init lines
+  std::vector<std::string> lines;
+
+  // init first
+  lines.emplace_back("");
+
+  // init line ref
+  std::string *line = &lines.back();
+
+  // for each char...
+  for (const auto &c : buffer.getBuffer()) {
+    // if carriage return...
+    if (c == '\r') {
+      // ignore it
+    }
+
+    // else if linefeed...
+    else if (c == '\n') {
+      // new line
+      lines.emplace_back("");
+
+      // update line ref
+      line = &lines.back();
+    }
+
+    // else...
+    else {
+      // add char to line
+      (*line) += c;
+    }
+  }
+
+  // merged lines
+  std::string merged;
+
+  // token sizes
+  std::size_t size_prefix = std::string(NC_LINE_PREFIX).size();
+  std::size_t size_ending = std::string(NC_LINE_ENDING).size();
+
+  // for each line...
+  for (const auto &l : lines) {
+    // if ends with escape...
+    if ((l.size() > 3) && (l.substr(l.size() - 3) == NC_LINE_ESCAPE)) {
+      // init first replacement
+      tooling::Replacement r1(filename, merged.size(), size_prefix, "");
+
+      // prefix and line
+      merged += NC_LINE_PREFIX + l;
+
+      // init second replacement
+      tooling::Replacement r2(filename, merged.size(), size_ending, "");
+
+      // ending
+      merged += NC_LINE_ENDING;
+
+      // add line ending
+      merged += "\n";
+
+      // save replacements
+      result.second.emplace_back(r1);
+      result.second.emplace_back(r2);
+    }
+
+    // else...
+    else {
+      // add line
+      merged += l + "\n";
+    }
+  }
+
+  // add null
+  merged += '\0';
+
+  // create buffer
+  result.first.reset(new StringMemoryBuffer(merged));
+
+  // return 
+  return result;
+}
+
 // Returns true on error.
 static bool format(StringRef FileName) {
   if (!OutputXML && Inplace && FileName == "-") {
@@ -351,7 +466,13 @@ static bool format(StringRef FileName) {
     errs() << EC.message() << "\n";
     return true;
   }
-  std::unique_ptr<llvm::MemoryBuffer> Code = std::move(CodeOrErr.get());
+
+  // tokenize
+  auto tokenPair = tokenizeEscaped(*CodeOrErr.get(), FileName);
+
+  // get code
+  auto Code = std::move(tokenPair.first);
+
   if (Code->getBufferSize() == 0)
     return false; // Empty files are formatted correctly.
 
@@ -400,6 +521,13 @@ static bool format(StringRef FileName) {
   Replacements FormatChanges =
       reformat(*FormatStyle, *ChangedCode, Ranges, AssumedFileName, &Status);
   Replaces = Replaces.merge(FormatChanges);
+
+  // for each token replacement...
+  for (auto &replacement : tokenPair.second) {
+    // add to replacements
+    Replaces.add(replacement);
+  }
+
   if (OutputXML || DryRun) {
     if (DryRun) {
       return emitReplacementWarnings(Replaces, AssumedFileName, Code);
