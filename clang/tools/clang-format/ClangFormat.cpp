@@ -358,8 +358,9 @@ private:
 };
 
 #define NC_LINE_ESCAPE "//."
-#define NC_LINE_PREFIX "#define NC_LINE_BEGIN( \""
+#define NC_LINE_PREFIX "#NC_LINE_BEGIN( \""
 #define NC_LINE_ENDING "NC_LINE_END\" )"
+#define NC_LINE_QUOTES "NC_LINE_QUOTES"
 
 // tokenize the buffer and provide replacements to reverse
 std::pair<std::unique_ptr<llvm::MemoryBuffer>,
@@ -413,6 +414,7 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
   // token sizes
   std::size_t size_prefix = std::string(NC_LINE_PREFIX).size();
   std::size_t size_ending = std::string(NC_LINE_ENDING).size();
+  std::size_t size_quotes = std::string(NC_LINE_QUOTES).size();
 
   // use cr
   bool use_cr = lines.size() ? (((cr_count * 100) / lines.size()) > 50) : false;
@@ -421,21 +423,48 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
   for (const auto &l : lines) {
     // if ends with escape...
     if ((l.size() > 3) && (l.substr(l.size() - 3) == NC_LINE_ESCAPE)) {
-      // init first replacement
-      tooling::Replacement r1(filename, merged.size(), size_prefix, "");
+
+      // add replacement
+      result.second.emplace_back(
+          tooling::Replacement(filename, merged.size(), size_prefix, ""));
 
       // prefix and line
-      merged += NC_LINE_PREFIX + l;
+      merged += NC_LINE_PREFIX;
 
-      // init second replacement
-      tooling::Replacement r2(filename, merged.size(), size_ending, "");
+      // prev
+      size_t p = 0;
+
+      // try to find quotes
+      auto q = l.find("\"");
+
+      // while found...
+      while (q != std::string::npos) {
+        // add substring to
+        merged += l.substr(p, q - p);
+
+        // add replacement
+        result.second.emplace_back(
+            tooling::Replacement(filename, merged.size(), size_quotes, "\""));
+
+        // add quote token
+        merged += NC_LINE_QUOTES;
+
+        // advance p
+        p = q + 1;
+
+        // find next
+        q = l.find("\"", p);
+      }
+
+      // add leftover
+      merged += l.substr(p);
+
+      // add replacement
+      result.second.emplace_back(
+          tooling::Replacement(filename, merged.size(), size_ending, ""));
 
       // ending
       merged += NC_LINE_ENDING;
-
-      // save replacements
-      result.second.emplace_back(r1);
-      result.second.emplace_back(r2);
     }
 
     // else...
