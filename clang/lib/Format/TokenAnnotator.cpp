@@ -2749,6 +2749,15 @@ bool TokenAnnotator::spaceRequiredBeforeParens(const FormatToken &Right) const {
 bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
                                           const FormatToken &Left,
                                           const FormatToken &Right) {
+  if (Left.Previous && Left.Previous->is( tok::l_paren ) && Left.is(tok::r_paren) && Right.is(tok::r_paren))
+    return Style.SpacesAfterEmptyArgs;
+
+  if (Left.is(tok::l_paren) && Right.is(tok::l_paren))
+    return Style.SpacesBetweenParentheses;
+
+  if (Left.is(tok::r_paren) && Right.is(tok::r_paren))
+    return Style.SpacesBetweenParentheses;
+
   if (Left.is(tok::kw_return) && Right.isNot(tok::semi))
     return true;
   if (Left.is(Keywords.kw_assert) && Style.Language == FormatStyle::LK_Java)
@@ -3013,7 +3022,17 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
   if (Right.Tok.getIdentifierInfo() && Left.Tok.getIdentifierInfo())
     return true; // Never ever merge two identifiers.
   if (Style.isCpp()) {
-    if (Left.is(tok::kw_operator))
+
+  if (Left.Previous && Left.Previous->is( tok::l_paren ) && Left.is(tok::r_paren) && Right.is(tok::r_paren))
+    return Style.SpacesAfterEmptyArgs;
+
+  if (Left.is(tok::l_paren) && Right.is(tok::l_paren))
+    return Style.SpacesBetweenParentheses;
+
+  if (Left.is(tok::r_paren) && Right.is(tok::r_paren))
+    return Style.SpacesBetweenParentheses;
+
+  if (Left.is(tok::kw_operator))
       return Right.is(tok::coloncolon);
     if (Right.is(tok::l_brace) && Right.BlockKind == BK_BracedInit &&
         !Left.opensScope() && Style.SpaceBeforeCpp11BracedList)

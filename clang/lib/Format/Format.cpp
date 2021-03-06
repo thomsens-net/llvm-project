@@ -590,6 +590,8 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("SpacesInCStyleCastParentheses",
                    Style.SpacesInCStyleCastParentheses);
     IO.mapOptional("SpacesInParentheses", Style.SpacesInParentheses);
+    IO.mapOptional("SpacesBetweenParentheses", Style.SpacesBetweenParentheses );
+    IO.mapOptional("SpacesAfterEmptyArgs", Style.SpacesAfterEmptyArgs );
     IO.mapOptional("SpacesInSquareBrackets", Style.SpacesInSquareBrackets);
     IO.mapOptional("SpaceBeforeSquareBrackets",
                    Style.SpaceBeforeSquareBrackets);
@@ -903,6 +905,8 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.UseTab = FormatStyle::UT_Never;
   LLVMStyle.ReflowComments = true;
   LLVMStyle.SpacesInParentheses = false;
+  LLVMStyle.SpacesBetweenParentheses = false;
+  LLVMStyle.SpacesAfterEmptyArgs = false;
   LLVMStyle.SpacesInSquareBrackets = false;
   LLVMStyle.SpaceInEmptyBlock = false;
   LLVMStyle.SpaceInEmptyParentheses = false;

@@ -452,8 +452,11 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
       merged += l;
     }
 
-    // add line feed
-    merged += '\n';
+    // if not last...
+    if (&l != &lines.back()) {
+      // add linefeed
+      merged += '\n';
+    }
   }
 
   // add null

@@ -2209,6 +2209,20 @@ struct FormatStyle {
   /// \endcode
   bool SpacesInParentheses;
 
+  /// If ``true``, spaces will be inserted between ``(`` and ``(`` or ``)`` and ``)``.
+  /// \code
+  ///    true:                                  false:
+  ///    t if( ( a < b ) && ( c < d ) )...      t if (( a < b ) && ( c < d ))...
+  /// \endcode
+  bool SpacesBetweenParentheses;
+  
+  /// If ``true``, spaces will be inserted after func() and before next ``)``.
+  /// \code
+  ///    true:                                  false:
+  ///    t ( f() )...                           t ( f())...
+  /// \endcode
+  bool SpacesAfterEmptyArgs;
+  
   /// If ``true``, spaces will be inserted after ``[`` and before ``]``.
   /// Lambdas without arguments or unspecified size array declarations will not
   /// be affected.
@@ -2402,6 +2416,8 @@ struct FormatStyle {
            SpacesInContainerLiterals == R.SpacesInContainerLiterals &&
            SpacesInCStyleCastParentheses == R.SpacesInCStyleCastParentheses &&
            SpacesInParentheses == R.SpacesInParentheses &&
+           SpacesBetweenParentheses == R.SpacesBetweenParentheses &&
+           SpacesAfterEmptyArgs == R.SpacesAfterEmptyArgs &&
            SpacesInSquareBrackets == R.SpacesInSquareBrackets &&
            SpaceBeforeSquareBrackets == R.SpaceBeforeSquareBrackets &&
            Standard == R.Standard && TabWidth == R.TabWidth &&
