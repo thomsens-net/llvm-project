@@ -361,14 +361,18 @@ private:
 #define NC_LINE_PREFIX "#NC(\""
 #define NC_LINE_ENDING "\")"
 
+// result
+struct TokenSet {
+  std::unique_ptr<llvm::MemoryBuffer> buffer;
+  std::vector<tooling::Replacement> pre;
+  std::vector<tooling::Replacement> post;
+};
+
 // tokenize the buffer and provide replacements to reverse
-std::pair<std::unique_ptr<llvm::MemoryBuffer>,
-          std::vector<tooling::Replacement>>
-tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
+TokenSet tokenizeEscaped(const llvm::MemoryBuffer &buffer,
+                         StringRef &filename) {
   // init result
-  std::pair<std::unique_ptr<llvm::MemoryBuffer>,
-            std::vector<tooling::Replacement>>
-      result;
+  TokenSet tokenSet;
 
   // lines
   std::vector<std::string> lines;
@@ -379,8 +383,17 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
   // init line ref
   std::string *line = &lines.back();
 
+  // cr count
+  int cr_count = 0;
+
   // for each char...
   for (const auto &c : buffer.getBuffer()) {
+
+    // if carriage return...
+    if (c == '\r') {
+      // inc cr
+      ++cr_count;
+    }
 
     // if linefeed...
     if (c == '\n') {
@@ -414,7 +427,7 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
          (l.substr(l.size() - 4, escapeLen) == NC_LINE_ESCAPE))) {
 
       // add replacement
-      result.second.emplace_back(
+      tokenSet.post.emplace_back(
           tooling::Replacement(filename, merged.size(), l.size(), l.c_str()));
 
       // init dummy
@@ -457,16 +470,42 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
       // add linefeed
       merged += '\n';
     }
+
+    // else last not blank...
+    else if ( !l.empty()) {
+
+      // if use cr...
+      if (cr_count && ((cr_count * 100 / l.size()) > 50)) {
+
+        // add replacement
+        tokenSet.pre.emplace_back(
+            tooling::Replacement(filename, merged.size(), 0, "\r\n"));
+
+        // add to buffer
+        merged += "\r\n";
+      }
+
+      // else
+      else {
+
+        // add replacement
+        tokenSet.pre.emplace_back(
+            tooling::Replacement(filename, merged.size(), 0, "\n"));
+
+        // add to buffer
+        merged += "\n";
+      }
+    }
   }
 
   // add null
   merged += '\0';
 
   // create buffer
-  result.first.reset(new StringMemoryBuffer(merged));
+  tokenSet.buffer.reset(new StringMemoryBuffer(merged));
 
   // return
-  return result;
+  return tokenSet;
 }
 
 // Returns true on error.
@@ -492,7 +531,7 @@ static bool format(StringRef FileName) {
   auto tokenPair = tokenizeEscaped(*CodeOrErr.get(), AssumedFileName);
 
   // get code
-  auto Code = std::move(tokenPair.first);
+  auto Code = std::move(tokenPair.buffer);
 
   if (Code->getBufferSize() == 0)
     return false; // Empty files are formatted correctly.
@@ -543,6 +582,13 @@ static bool format(StringRef FileName) {
   Replaces = Replaces.merge(FormatChanges);
 
   if (OutputXML || DryRun) {
+
+    // for each token replacement...
+    for (auto &replacement : tokenPair.pre) {
+      // add to replacements
+      Replaces.add(replacement);
+    }
+
     if (DryRun) {
       return emitReplacementWarnings(Replaces, AssumedFileName, Code);
     } else {
@@ -551,7 +597,7 @@ static bool format(StringRef FileName) {
   } else {
 
     // for each token replacement...
-    for (auto &replacement : tokenPair.second) {
+    for (auto &replacement : tokenPair.post) {
       // add to replacements
       Replaces.add(replacement);
     }
