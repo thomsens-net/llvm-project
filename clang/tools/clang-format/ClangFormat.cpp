@@ -357,20 +357,23 @@ private:
   std::string buffer;
 };
 
+#define NC_LINE_ESCAPE "//."
+#define NC_LINE_PREFIX "#NC(\""
+#define NC_LINE_ENDING "\")"
+
 // tokenize the buffer and provide replacements to reverse
 std::pair<std::unique_ptr<llvm::MemoryBuffer>,
           std::vector<tooling::Replacement>>
 tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
-
   // init result
   std::pair<std::unique_ptr<llvm::MemoryBuffer>,
             std::vector<tooling::Replacement>>
       result;
 
-  // init lines
+  // lines
   std::vector<std::string> lines;
 
-  // init first
+  // init first line
   lines.emplace_back("");
 
   // init line ref
@@ -379,7 +382,7 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
   // for each char...
   for (const auto &c : buffer.getBuffer()) {
 
-    // else if linefeed...
+    // if linefeed...
     if (c == '\n') {
       // new line
       lines.emplace_back("");
@@ -397,10 +400,6 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
 
   // merged lines
   std::string merged;
-
-#define NC_LINE_ESCAPE "//."
-#define NC_LINE_PREFIX "#NC(\""
-#define NC_LINE_ENDING "\")"
 
   // get prefix length
   int escapeLen = std::string(NC_LINE_ESCAPE).size();
@@ -424,11 +423,11 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
       // cr
       bool cr = l[l.size() - 1] == '\r';
 
-      // init first & last
+      // init begin & end
       int begin = prefixLen;
       int end = l.size() - (endingLen + (cr ? 1 : 0));
 
-      // for each char starting at 3...
+      // for each char...
       for (int n = begin; n < end; ++n) {
         // add char
         dummy += 'x';
@@ -443,7 +442,7 @@ tokenizeEscaped(const llvm::MemoryBuffer &buffer, StringRef &filename) {
         dummy += '\r';
       }
 
-      // add line delim
+      // add dummy
       merged += dummy;
     }
 
