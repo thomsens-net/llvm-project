@@ -2213,15 +2213,16 @@ struct FormatStyle {
   /// \code
   ///    true:                                  false:
   ///    t if( ( a < b ) && ( c < d ) )...      t if (( a < b ) && ( c < d ))...
+  ///    t f( []{ int n = 3; } );               t f( []{ int n = 3; });
   /// \endcode
-  bool SpacesBetweenParentheses;
+  bool SpacesBetweenParenthesesBracketsAndBraces;
   
   /// If ``true``, spaces will be inserted after func() and before next ``)``.
   /// \code
   ///    true:                                  false:
   ///    t ( f() )...                           t ( f())...
   /// \endcode
-  bool SpacesAfterEmptyArgs;
+  bool SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
   
   /// If ``true``, spaces will be inserted after ``[`` and before ``]``.
   /// Lambdas without arguments or unspecified size array declarations will not
@@ -2416,8 +2417,8 @@ struct FormatStyle {
            SpacesInContainerLiterals == R.SpacesInContainerLiterals &&
            SpacesInCStyleCastParentheses == R.SpacesInCStyleCastParentheses &&
            SpacesInParentheses == R.SpacesInParentheses &&
-           SpacesBetweenParentheses == R.SpacesBetweenParentheses &&
-           SpacesAfterEmptyArgs == R.SpacesAfterEmptyArgs &&
+           SpacesBetweenParenthesesBracketsAndBraces == R.SpacesBetweenParenthesesBracketsAndBraces &&
+           SpacesAfterEmptyArgsAndBeforeEmptyBrackets == R.SpacesAfterEmptyArgsAndBeforeEmptyBrackets &&
            SpacesInSquareBrackets == R.SpacesInSquareBrackets &&
            SpaceBeforeSquareBrackets == R.SpaceBeforeSquareBrackets &&
            Standard == R.Standard && TabWidth == R.TabWidth &&
