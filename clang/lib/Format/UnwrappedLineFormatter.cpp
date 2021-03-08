@@ -1222,8 +1222,18 @@ void UnwrappedLineFormatter::formatFirstToken(
 
   // Remove empty lines after access specifiers.
   if (PreviousLine && PreviousLine->First->isAccessSpecifier() &&
-      (!PreviousLine->InPPDirective || !RootToken.HasUnescapedNewline))
-    Newlines = std::min(1u, Newlines);
+      (!PreviousLine->InPPDirective || !RootToken.HasUnescapedNewline)) {
+    if (Style.AlwaysDoubleBreakAfterClassProtectionKeywords) {
+      // add 2 newlines
+      Newlines = 2;
+    }
+
+    // else
+    else {
+      // use newlines
+      Newlines = std::min(1u, Newlines);
+    }
+  }
 
   if (Newlines)
     Indent = NewlineIndent;

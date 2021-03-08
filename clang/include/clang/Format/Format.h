@@ -544,6 +544,16 @@ struct FormatStyle {
   /// \endcode
   bool AlwaysBreakBeforeMultilineStrings;
 
+  /// If ``true``, always break before class public, private & protected keywords
+  ///
+  /// \code
+  ///    true:                                  false:
+  ///    protected:                             protected:
+  ///                                               nextline
+  ///        nextline                             
+  /// \endcode
+  bool AlwaysDoubleBreakAfterClassProtectionKeywords;
+
   /// Different ways to break after the template declaration.
   enum BreakTemplateDeclarationsStyle {
     /// Do not force break before declaration.
@@ -2331,6 +2341,8 @@ struct FormatStyle {
            AlwaysBreakAfterReturnType == R.AlwaysBreakAfterReturnType &&
            AlwaysBreakBeforeMultilineStrings ==
                R.AlwaysBreakBeforeMultilineStrings &&
+           AlwaysDoubleBreakAfterClassProtectionKeywords &&
+               R.AlwaysDoubleBreakAfterClassProtectionKeywords &&
            AlwaysBreakTemplateDeclarations ==
                R.AlwaysBreakTemplateDeclarations &&
            BinPackArguments == R.BinPackArguments &&

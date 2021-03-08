@@ -2755,8 +2755,8 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
   if (Right.Next && Right.Next->is( tok::r_square ) && Left.is(tok::l_paren) && Right.is(tok::r_square))
     return Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
 
-  auto isLPBS = []( const FormatToken &t ){ return t.is( tok::l_paren ) || t.is( tok::l_brace ) || t.is( tok::l_square ); };
-  auto isRPBS = []( const FormatToken &t ){ return t.is( tok::r_paren ) || t.is( tok::r_brace ) || t.is( tok::r_square ); };
+  auto isLPBS = []( const FormatToken &t ){ return t.isOneOf( tok::l_paren, tok::l_brace, tok::l_square ); };
+  auto isRPBS = []( const FormatToken &t ){ return t.isOneOf( tok::r_paren, tok::r_brace, tok::r_square ); };
 
   if (( isLPBS( Left ) && isLPBS( Right )) || ( isRPBS( Left ) && isRPBS( Right ))) 
     return Style.SpacesBetweenParenthesesBracketsAndBraces;
@@ -3032,8 +3032,8 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
   if (Right.Next && Right.Next->is( tok::r_square ) && Left.is(tok::l_paren) && Right.is(tok::l_square))
     return Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
 
-  auto isLPBS = []( const FormatToken &t ){ return t.is( tok::l_paren ) || t.is( tok::l_brace ) || t.is( tok::l_square ); };
-  auto isRPBS = []( const FormatToken &t ){ return t.is( tok::r_paren ) || t.is( tok::r_brace ) || t.is( tok::r_square ); };
+  auto isLPBS = []( const FormatToken &t ){ return t.isOneOf( tok::l_paren, tok::l_brace, tok::l_square ); };
+  auto isRPBS = []( const FormatToken &t ){ return t.isOneOf( tok::r_paren, tok::r_brace, tok::r_square ); };
 
   if (( isLPBS( Left ) && isLPBS( Right )) || ( isRPBS( Left ) && isRPBS( Right ))) 
     return Style.SpacesBetweenParenthesesBracketsAndBraces;

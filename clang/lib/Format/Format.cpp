@@ -462,6 +462,8 @@ template <> struct MappingTraits<FormatStyle> {
 
     IO.mapOptional("AlwaysBreakBeforeMultilineStrings",
                    Style.AlwaysBreakBeforeMultilineStrings);
+    IO.mapOptional("AlwaysDoubleBreakAfterClassProtectionKeywords",
+                   Style.AlwaysDoubleBreakAfterClassProtectionKeywords);
     IO.mapOptional("AlwaysBreakTemplateDeclarations",
                    Style.AlwaysBreakTemplateDeclarations);
     IO.mapOptional("BinPackArguments", Style.BinPackArguments);
@@ -831,6 +833,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.AlwaysBreakAfterReturnType = FormatStyle::RTBS_None;
   LLVMStyle.AlwaysBreakAfterDefinitionReturnType = FormatStyle::DRTBS_None;
   LLVMStyle.AlwaysBreakBeforeMultilineStrings = false;
+  LLVMStyle.AlwaysDoubleBreakAfterClassProtectionKeywords = false;
   LLVMStyle.AlwaysBreakTemplateDeclarations = FormatStyle::BTDS_MultiLine;
   LLVMStyle.BinPackArguments = true;
   LLVMStyle.BinPackParameters = true;
@@ -905,8 +908,8 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.UseTab = FormatStyle::UT_Never;
   LLVMStyle.ReflowComments = true;
   LLVMStyle.SpacesInParentheses = false;
-  LLVMStyle.SpacesBetweenParenthesesBracketsAndBraces = false;
-  LLVMStyle.SpacesAfterEmptyArgsAndBeforeEmptyBrackets = true;
+  LLVMStyle.SpacesBetweenParenthesesBracketsAndBraces = LLVMStyle.SpacesInParentheses;
+  LLVMStyle.SpacesAfterEmptyArgsAndBeforeEmptyBrackets = LLVMStyle.SpacesInParentheses;
   LLVMStyle.SpacesInSquareBrackets = false;
   LLVMStyle.SpaceInEmptyBlock = false;
   LLVMStyle.SpaceInEmptyParentheses = false;
