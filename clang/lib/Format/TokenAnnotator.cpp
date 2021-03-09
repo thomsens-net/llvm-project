@@ -2749,16 +2749,20 @@ bool TokenAnnotator::spaceRequiredBeforeParens(const FormatToken &Right) const {
 bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
                                           const FormatToken &Left,
                                           const FormatToken &Right) {
-  if (Left.Previous && Left.Previous->is( tok::l_paren ) && Left.is(tok::r_paren) && Right.is(tok::r_paren))
+  auto isLPBS = [](const FormatToken &t) {
+    return t.isOneOf(tok::l_paren, tok::l_brace, tok::l_square);
+  };
+  auto isRPBS = [](const FormatToken &t) {
+    return t.isOneOf(tok::r_paren, tok::r_brace, tok::r_square);
+  };
+
+  if (Right.Next && Right.Next->is(tok::r_square) && Left.is(tok::l_paren) && Right.is(tok::l_square))
     return Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
 
-  if (Right.Next && Right.Next->is( tok::r_square ) && Left.is(tok::l_paren) && Right.is(tok::r_square))
+  if (Left.Previous && Left.Previous->is(tok::l_paren) && Left.is(tok::r_paren) && isRPBS(Right))
     return Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
 
-  auto isLPBS = []( const FormatToken &t ){ return t.isOneOf( tok::l_paren, tok::l_brace, tok::l_square ); };
-  auto isRPBS = []( const FormatToken &t ){ return t.isOneOf( tok::r_paren, tok::r_brace, tok::r_square ); };
-
-  if (( isLPBS( Left ) && isLPBS( Right )) || ( isRPBS( Left ) && isRPBS( Right ))) 
+  if ((isLPBS(Left) && isLPBS(Right)) || (isRPBS(Left) && isRPBS(Right)))
     return Style.SpacesBetweenParenthesesBracketsAndBraces;
 
   if (Left.is(tok::kw_return) && Right.isNot(tok::semi))
@@ -3026,19 +3030,23 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     return true; // Never ever merge two identifiers.
   if (Style.isCpp()) {
 
-  if (Left.Previous && Left.Previous->is( tok::l_paren ) && Left.is(tok::r_paren) && Right.is(tok::r_paren))
+  auto isLPBS = [](const FormatToken &t) {
+    return t.isOneOf(tok::l_paren, tok::l_brace, tok::l_square);
+  };
+  auto isRPBS = [](const FormatToken &t) {
+    return t.isOneOf(tok::r_paren, tok::r_brace, tok::r_square);
+  };
+
+  if (Right.Next && Right.Next->is(tok::r_square) && Left.is(tok::l_paren) && Right.is(tok::l_square))
     return Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
 
-  if (Right.Next && Right.Next->is( tok::r_square ) && Left.is(tok::l_paren) && Right.is(tok::l_square))
+  if (Left.Previous && Left.Previous->is(tok::l_paren) && Left.is(tok::r_paren) && isRPBS(Right))
     return Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
 
-  auto isLPBS = []( const FormatToken &t ){ return t.isOneOf( tok::l_paren, tok::l_brace, tok::l_square ); };
-  auto isRPBS = []( const FormatToken &t ){ return t.isOneOf( tok::r_paren, tok::r_brace, tok::r_square ); };
-
-  if (( isLPBS( Left ) && isLPBS( Right )) || ( isRPBS( Left ) && isRPBS( Right ))) 
+  if ((isLPBS(Left) && isLPBS(Right)) || (isRPBS(Left) && isRPBS(Right)))
     return Style.SpacesBetweenParenthesesBracketsAndBraces;
 
-  if (Left.is(tok::kw_operator))
+    if (Left.is(tok::kw_operator))
       return Right.is(tok::coloncolon);
     if (Right.is(tok::l_brace) && Right.BlockKind == BK_BracedInit &&
         !Left.opensScope() && Style.SpaceBeforeCpp11BracedList)
