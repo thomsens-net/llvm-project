@@ -952,10 +952,38 @@ unsigned ContinuationIndenter::getNewLineColumn(const LineState &State) {
     return State.Stack.back().ColonPos + 2;
 
   const FormatToken &Previous = *Current.Previous;
-  // If we are continuing an expression, we want to use the continuation indent.
-  unsigned ContinuationIndent =
-      std::max(State.Stack.back().LastSpace, State.Stack.back().Indent) +
-      Style.ContinuationIndentWidth;
+
+  // continuation indent
+  unsigned ContinuationIndent = 0;
+
+  // if current is period and newline...
+  if (Current.NewlinesBefore && Current.is(tok::period)) {
+    unsigned indentStart = 0;
+
+    const auto *token = State.Line->First;
+
+    // while token and not current...
+    while (token && (token != &Current)) {
+      // if new line...
+      if (token->NewlinesBefore) {
+        // capture col
+        indentStart = token->OriginalColumn;
+      }
+
+      // next
+      token = token->Next;
+    }
+    ContinuationIndent = indentStart + Style.ContinuationIndentWidth;
+  }
+
+  // else...
+  else {
+    // If we are continuing an expression, we want to use the continuation
+    // indent.
+    ContinuationIndent =
+        std::max(State.Stack.back().LastSpace, State.Stack.back().Indent) +
+        Style.ContinuationIndentWidth;
+  }
   const FormatToken *PreviousNonComment = Current.getPreviousNonComment();
   const FormatToken *NextNonComment = Previous.getNextNonComment();
   if (!NextNonComment)
