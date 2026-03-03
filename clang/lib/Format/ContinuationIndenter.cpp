@@ -1397,11 +1397,37 @@ ContinuationIndenter::getNewLineColumn(const LineState &State) {
   }
 
   const FormatToken &Previous = *Current.Previous;
-  // If we are continuing an expression, we want to use the continuation indent.
-  const auto ContinuationIndent =
-      std::max(IndentationAndAlignment(CurrentState.LastSpace),
-               CurrentState.Indent) +
-      Style.ContinuationIndentWidth;
+
+  // continuation indent
+  IndentationAndAlignment ContinuationIndent;
+
+  // if current is period and newline...
+  if (Current.NewlinesBefore && Current.is(tok::period)) {
+    unsigned indentStart = 0;
+
+    const auto *token = State.Line->First;
+
+    // while token and not current...
+    while (token && (token != &Current)) {
+      // if new line...
+      if (token->NewlinesBefore) {
+        // capture col
+        indentStart = token->OriginalColumn;
+      }
+
+      // next
+      token = token->Next;
+    }
+    ContinuationIndent =
+        IndentationAndAlignment(indentStart + Style.ContinuationIndentWidth);
+  } else {
+    // If we are continuing an expression, we want to use the continuation
+    // indent.
+    ContinuationIndent =
+        std::max(IndentationAndAlignment(CurrentState.LastSpace),
+                 CurrentState.Indent) +
+        Style.ContinuationIndentWidth;
+  }
   const FormatToken *PreviousNonComment = Current.getPreviousNonComment();
   const FormatToken *NextNonComment = Previous.getNextNonComment();
   if (!NextNonComment)

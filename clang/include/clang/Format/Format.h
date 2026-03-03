@@ -1118,6 +1118,16 @@ struct FormatStyle {
   /// \version 3.4
   bool AlwaysBreakBeforeMultilineStrings;
 
+  /// If ``true``, always break before class public, private & protected keywords
+  ///
+  /// \code
+  ///    true:                                  false:
+  ///    protected:                             protected:
+  ///                                               nextline
+  ///        nextline
+  /// \endcode
+  bool AlwaysDoubleBreakAfterClassProtectionKeywords;
+
   /// Different ways to break after the template declaration.
   enum BreakTemplateDeclarationsStyle : int8_t {
     /// Do not change the line breaking before the declaration.
@@ -5372,6 +5382,20 @@ struct FormatStyle {
   /// \version 17
   SpacesInParensCustom SpacesInParensOptions;
 
+  /// If ``true``, spaces will be inserted between ``(`` and ``(`` or ``)`` and ``)``.
+  /// \code
+  ///    true:                                  false:
+  ///    t if( ( a < b ) && ( c < d ) )...      t if (( a < b ) && ( c < d ))...
+  /// \endcode
+  bool SpacesBetweenParenthesesBracketsAndBraces;
+
+  /// If ``true``, spaces will be inserted after func() and before next ``)``.
+  /// \code
+  ///    true:                                  false:
+  ///    t ( f() )...                           t ( f())...
+  /// \endcode
+  bool SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
+
   /// If ``true``, spaces will be inserted after ``[`` and before ``]``.
   /// Lambdas without arguments or unspecified size array declarations will not
   /// be affected.
@@ -5680,6 +5704,8 @@ struct FormatStyle {
                R.AllowShortNamespacesOnASingleLine &&
            AlwaysBreakBeforeMultilineStrings ==
                R.AlwaysBreakBeforeMultilineStrings &&
+           AlwaysDoubleBreakAfterClassProtectionKeywords ==
+               R.AlwaysDoubleBreakAfterClassProtectionKeywords &&
            AttributeMacros == R.AttributeMacros &&
            BinPackArguments == R.BinPackArguments &&
            BinPackLongBracedList == R.BinPackLongBracedList &&
@@ -5832,6 +5858,10 @@ struct FormatStyle {
                R.SpacesInLineCommentPrefix.Maximum &&
            SpacesInParens == R.SpacesInParens &&
            SpacesInParensOptions == R.SpacesInParensOptions &&
+           SpacesBetweenParenthesesBracketsAndBraces ==
+               R.SpacesBetweenParenthesesBracketsAndBraces &&
+           SpacesAfterEmptyArgsAndBeforeEmptyBrackets ==
+               R.SpacesAfterEmptyArgsAndBeforeEmptyBrackets &&
            SpacesInSquareBrackets == R.SpacesInSquareBrackets &&
            Standard == R.Standard &&
            StatementAttributeLikeMacros == R.StatementAttributeLikeMacros &&

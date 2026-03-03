@@ -1618,19 +1618,23 @@ static auto computeNewlines(const AnnotatedLine &Line,
     // EmptyLineBeforeAccessModifier is handling the case when two access
     // modifiers follow each other.
     if (!RootToken.isAccessSpecifier()) {
-      switch (Style.EmptyLineAfterAccessModifier) {
-      case FormatStyle::ELAAMS_Never:
-        Newlines = 1;
-        break;
-      case FormatStyle::ELAAMS_Leave:
-        Newlines = std::max(Newlines, 1u);
-        break;
-      case FormatStyle::ELAAMS_Always:
-        if (RootToken.is(tok::r_brace)) // Do not add at end of class.
-          Newlines = 1u;
-        else
-          Newlines = std::max(Newlines, 2u);
-        break;
+      if (Style.AlwaysDoubleBreakAfterClassProtectionKeywords) {
+        Newlines = 2;
+      } else {
+        switch (Style.EmptyLineAfterAccessModifier) {
+        case FormatStyle::ELAAMS_Never:
+          Newlines = 1;
+          break;
+        case FormatStyle::ELAAMS_Leave:
+          Newlines = std::max(Newlines, 1u);
+          break;
+        case FormatStyle::ELAAMS_Always:
+          if (RootToken.is(tok::r_brace)) // Do not add at end of class.
+            Newlines = 1u;
+          else
+            Newlines = std::max(Newlines, 2u);
+          break;
+        }
       }
     }
   }

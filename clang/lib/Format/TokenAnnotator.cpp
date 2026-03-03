@@ -4592,6 +4592,22 @@ bool TokenAnnotator::spaceRequiredBeforeParens(const FormatToken &Right) const {
 bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
                                           const FormatToken &Left,
                                           const FormatToken &Right) const {
+  auto isLPBS = [](const FormatToken &t) {
+    return t.isOneOf(tok::l_paren, tok::l_brace, tok::l_square);
+  };
+  auto isRPBS = [](const FormatToken &t) {
+    return t.isOneOf(tok::r_paren, tok::r_brace, tok::r_square);
+  };
+
+  if (Right.Next && Right.Next->is(tok::r_square) && Left.is(tok::l_paren) && Right.is(tok::l_square))
+    return Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
+
+  if (Left.Previous && Left.Previous->is(tok::l_paren) && Left.is(tok::r_paren) && isRPBS(Right))
+    return Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
+
+  if ((isLPBS(Left) && isLPBS(Right)) || (isRPBS(Left) && isRPBS(Right)))
+    return Style.SpacesBetweenParenthesesBracketsAndBraces;
+
   if (Left.is(tok::kw_return) &&
       Right.isNoneOf(tok::semi, tok::r_paren, tok::hashhash)) {
     return true;
@@ -5085,6 +5101,22 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
   const auto *BeforeLeft = Left.Previous;
 
   if (IsCpp) {
+    auto isLPBS = [](const FormatToken &t) {
+      return t.isOneOf(tok::l_paren, tok::l_brace, tok::l_square);
+    };
+    auto isRPBS = [](const FormatToken &t) {
+      return t.isOneOf(tok::r_paren, tok::r_brace, tok::r_square);
+    };
+
+    if (Right.Next && Right.Next->is(tok::r_square) && Left.is(tok::l_paren) && Right.is(tok::l_square))
+      return Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
+
+    if (Left.Previous && Left.Previous->is(tok::l_paren) && Left.is(tok::r_paren) && isRPBS(Right))
+      return Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets;
+
+    if ((isLPBS(Left) && isLPBS(Right)) || (isRPBS(Left) && isRPBS(Right)))
+      return Style.SpacesBetweenParenthesesBracketsAndBraces;
+
     if (Left.is(TT_OverloadedOperator) &&
         Right.isOneOf(TT_TemplateOpener, TT_TemplateCloser)) {
       return true;

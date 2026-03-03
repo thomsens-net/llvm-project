@@ -1129,6 +1129,8 @@ template <> struct MappingTraits<FormatStyle> {
                    Style.AlwaysBreakAfterDefinitionReturnType);
     IO.mapOptional("AlwaysBreakBeforeMultilineStrings",
                    Style.AlwaysBreakBeforeMultilineStrings);
+    IO.mapOptional("AlwaysDoubleBreakAfterClassProtectionKeywords",
+                   Style.AlwaysDoubleBreakAfterClassProtectionKeywords);
     IO.mapOptional("AttributeMacros", Style.AttributeMacros);
     IO.mapOptional("BinPackArguments", Style.BinPackArguments);
     IO.mapOptional("BinPackLongBracedList", Style.BinPackLongBracedList);
@@ -1349,6 +1351,10 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("VariableTemplates", Style.VariableTemplates);
     IO.mapOptional("VerilogBreakBetweenInstancePorts",
                    Style.VerilogBreakBetweenInstancePorts);
+    IO.mapOptional("SpacesBetweenParenthesesBracketsAndBraces",
+                   Style.SpacesBetweenParenthesesBracketsAndBraces);
+    IO.mapOptional("SpacesAfterEmptyArgsAndBeforeEmptyBrackets",
+                   Style.SpacesAfterEmptyArgsAndBeforeEmptyBrackets);
     IO.mapOptional("WhitespaceSensitiveMacros",
                    Style.WhitespaceSensitiveMacros);
     IO.mapOptional("WrapNamespaceBodyWithEmptyLines",
@@ -1677,6 +1683,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.AllowShortNamespacesOnASingleLine = false;
   LLVMStyle.AlwaysBreakAfterDefinitionReturnType = FormatStyle::DRTBS_None;
   LLVMStyle.AlwaysBreakBeforeMultilineStrings = false;
+  LLVMStyle.AlwaysDoubleBreakAfterClassProtectionKeywords = false;
   LLVMStyle.AttributeMacros.push_back("__capability");
   LLVMStyle.BinPackArguments = true;
   LLVMStyle.BinPackLongBracedList = true;
@@ -1833,6 +1840,8 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.SpacesInLineCommentPrefix = {
       /*Minimum=*/1, /*Maximum=*/std::numeric_limits<unsigned>::max()};
   LLVMStyle.SpacesInParens = FormatStyle::SIPO_Never;
+  LLVMStyle.SpacesBetweenParenthesesBracketsAndBraces = false;
+  LLVMStyle.SpacesAfterEmptyArgsAndBeforeEmptyBrackets = false;
   LLVMStyle.SpacesInSquareBrackets = false;
   LLVMStyle.Standard = FormatStyle::LS_Latest;
   LLVMStyle.StatementAttributeLikeMacros.push_back("Q_EMIT");
@@ -1848,6 +1857,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.WhitespaceSensitiveMacros.push_back("NS_SWIFT_NAME");
   LLVMStyle.WhitespaceSensitiveMacros.push_back("PP_STRINGIZE");
   LLVMStyle.WhitespaceSensitiveMacros.push_back("STRINGIZE");
+  LLVMStyle.WhitespaceSensitiveMacros.push_back("NC");
   LLVMStyle.WrapNamespaceBodyWithEmptyLines = FormatStyle::WNBWELS_Leave;
 
   LLVMStyle.PenaltyBreakAssignment = prec::Assignment;
@@ -2208,6 +2218,8 @@ FormatStyle getNoStyle() {
 bool getPredefinedStyle(StringRef Name, FormatStyle::LanguageKind Language,
                         FormatStyle *Style) {
   if (Name.equals_insensitive("llvm"))
+    *Style = getLLVMStyle(Language);
+  else if (Name.equals_insensitive("thomsen"))
     *Style = getLLVMStyle(Language);
   else if (Name.equals_insensitive("chromium"))
     *Style = getChromiumStyle(Language);

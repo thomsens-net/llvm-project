@@ -400,6 +400,113 @@ class ClangFormatDiagConsumer : public DiagnosticConsumer {
   }
 };
 
+class StringMemoryBuffer : public MemoryBuffer {
+public:
+  StringMemoryBuffer(const std::string &source) {
+    buffer = source;
+    init(&buffer.front(), &buffer.back(), true);
+  }
+
+  MemoryBuffer::BufferKind getBufferKind() const override {
+    return MemoryBuffer::MemoryBuffer_Malloc;
+  }
+
+private:
+  std::string buffer;
+};
+
+#define NC_LINE_ESCAPE "//."
+#define NC_LINE_PREFIX "#NC(\""
+#define NC_LINE_ENDING "\")"
+
+struct TokenSet {
+  std::unique_ptr<llvm::MemoryBuffer> buffer;
+  std::vector<tooling::Replacement> pre;
+  std::vector<tooling::Replacement> post;
+};
+
+// tokenize the buffer and provide replacements to reverse
+TokenSet tokenizeEscaped(const llvm::MemoryBuffer &buffer,
+                         StringRef &filename) {
+  TokenSet tokenSet;
+
+  std::vector<std::string> lines;
+  lines.emplace_back("");
+  std::string *line = &lines.back();
+
+  int cr_count = 0;
+
+  for (const auto &c : buffer.getBuffer()) {
+    if (c == '\r') {
+      ++cr_count;
+    }
+
+    if (c == '\n') {
+      lines.emplace_back("");
+      line = &lines.back();
+    } else {
+      (*line) += c;
+    }
+  }
+
+  std::string merged;
+
+  int escapeLen = std::string(NC_LINE_ESCAPE).size();
+  int prefixLen = std::string(NC_LINE_PREFIX).size();
+  int endingLen = std::string(NC_LINE_ENDING).size();
+
+  for (const auto &l : lines) {
+    if ((l.size() > (unsigned)(prefixLen + endingLen + 1)) &&
+        ((l.substr(l.size() - 3, escapeLen) == NC_LINE_ESCAPE) ||
+         (l.substr(l.size() - 4, escapeLen) == NC_LINE_ESCAPE))) {
+
+      tokenSet.post.emplace_back(
+          tooling::Replacement(filename, merged.size(), l.size(), l.c_str()));
+
+      std::string dummy = NC_LINE_PREFIX;
+
+      bool cr = l[l.size() - 1] == '\r';
+
+      int begin = prefixLen;
+      int end = l.size() - (endingLen + (cr ? 1 : 0));
+
+      for (int n = begin; n < end; ++n) {
+        dummy += 'x';
+      }
+
+      dummy += NC_LINE_ENDING;
+
+      if (cr) {
+        dummy += '\r';
+      }
+
+      merged += dummy;
+    } else {
+      merged += l;
+    }
+
+    if (&l != &lines.back()) {
+      merged += '\n';
+    } else if (!l.empty()) {
+      if (cr_count && ((cr_count * 100 / l.size()) > 50)) {
+        tokenSet.pre.emplace_back(
+            tooling::Replacement(filename, merged.size(), 0, "\r\n"));
+        merged += "\r\n";
+      } else {
+        tokenSet.pre.emplace_back(
+            tooling::Replacement(filename, merged.size(), 0, "\n"));
+        merged += "\n";
+      }
+    }
+  }
+
+  merged += '\0';
+
+  tokenSet.buffer.reset(new StringMemoryBuffer(merged));
+
+  return tokenSet;
+}
+
 // Returns true on error.
 static bool format(StringRef FileName, bool ErrorOnIncompleteFormat = false) {
   const bool IsSTDIN = FileName == "-";
@@ -417,7 +524,15 @@ static bool format(StringRef FileName, bool ErrorOnIncompleteFormat = false) {
     errs() << FileName << ": " << EC.message() << "\n";
     return true;
   }
-  std::unique_ptr<llvm::MemoryBuffer> Code = std::move(CodeOrErr.get());
+  // moved up from below
+  StringRef AssumedFileName = IsSTDIN ? AssumeFileName : FileName;
+
+  // tokenize
+  auto tokenPair = tokenizeEscaped(*CodeOrErr.get(), AssumedFileName);
+
+  // get code
+  auto Code = std::move(tokenPair.buffer);
+
   if (Code->getBufferSize() == 0)
     return false; // Empty files are formatted correctly.
 
@@ -437,7 +552,7 @@ static bool format(StringRef FileName, bool ErrorOnIncompleteFormat = false) {
   std::vector<tooling::Range> Ranges;
   if (fillRanges(Code.get(), Ranges))
     return true;
-  StringRef AssumedFileName = IsSTDIN ? AssumeFileName : FileName;
+  // AssumedFileName already set above
   if (AssumedFileName.empty()) {
     llvm::errs() << "error: empty filenames are not allowed\n";
     return true;
@@ -503,13 +618,23 @@ static bool format(StringRef FileName, bool ErrorOnIncompleteFormat = false) {
   Replacements FormatChanges =
       reformat(*FormatStyle, *ChangedCode, Ranges, AssumedFileName, &Status);
   Replaces = Replaces.merge(FormatChanges);
-  if (DryRun) {
-    return Replaces.size() > (IsJson ? 1u : 0u) &&
-           emitReplacementWarnings(Replaces, AssumedFileName, Code);
-  }
-  if (OutputXML) {
+
+  if (OutputXML || DryRun) {
+    // for each token replacement...
+    for (auto &replacement : tokenPair.pre) {
+      Replaces.add(replacement);
+    }
+
+    if (DryRun) {
+      return Replaces.size() > (IsJson ? 1u : 0u) &&
+             emitReplacementWarnings(Replaces, AssumedFileName, Code);
+    }
     outputXML(Replaces, FormatChanges, Status, Cursor, CursorPosition);
   } else {
+    // for each token replacement...
+    for (auto &replacement : tokenPair.post) {
+      Replaces.add(replacement);
+    }
     auto InMemoryFileSystem =
         makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
     FileManager Files(FileSystemOptions(), InMemoryFileSystem);
