@@ -705,6 +705,7 @@ template <> struct ScalarEnumerationTraits<FormatStyle::ShortLambdaStyle> {
     IO.enumCase(Value, "Inline", FormatStyle::SLS_Inline);
     IO.enumCase(Value, "All", FormatStyle::SLS_All);
     IO.enumCase(Value, "true", FormatStyle::SLS_All);
+    IO.enumCase(Value, "InlineOnly", FormatStyle::SLS_InlineOnly);
   }
 };
 

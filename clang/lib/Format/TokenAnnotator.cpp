@@ -5822,6 +5822,10 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
         // functions.
         return (Left.NestingLevel == 0 && Line.Level == 0) &&
                !Left.Children.empty();
+      case FormatStyle::SLS_InlineOnly:
+        // Same as Inline for JS arrow functions.
+        return (Left.NestingLevel == 0 && Line.Level == 0) &&
+               !Left.Children.empty();
       }
       llvm_unreachable("Unknown FormatStyle::ShortLambdaStyle enum");
     }
@@ -6087,12 +6091,14 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
 
   if (Left.is(TT_LambdaLBrace)) {
     if (IsFunctionArgument(Left) &&
-        Style.AllowShortLambdasOnASingleLine == FormatStyle::SLS_Inline) {
+        (Style.AllowShortLambdasOnASingleLine == FormatStyle::SLS_Inline ||
+         Style.AllowShortLambdasOnASingleLine == FormatStyle::SLS_InlineOnly)) {
       return false;
     }
 
     if (Style.AllowShortLambdasOnASingleLine == FormatStyle::SLS_None ||
         Style.AllowShortLambdasOnASingleLine == FormatStyle::SLS_Inline ||
+        Style.AllowShortLambdasOnASingleLine == FormatStyle::SLS_InlineOnly ||
         (!Left.Children.empty() &&
          Style.AllowShortLambdasOnASingleLine == FormatStyle::SLS_Empty)) {
       return true;
@@ -6584,6 +6590,11 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
 
   auto ShortLambdaOption = Style.AllowShortLambdasOnASingleLine;
   if (Style.BraceWrapping.BeforeLambdaBody && Right.is(TT_LambdaLBrace)) {
+    if (ShortLambdaOption == FormatStyle::SLS_InlineOnly) {
+      // InlineOnly: only keep inline (function argument) lambdas on one line;
+      // standalone lambdas always get the brace on a new line.
+      return !IsFunctionArgument(Right);
+    }
     if (isAllmanLambdaBrace(Left))
       return !isEmptyLambdaAllowed(Left, ShortLambdaOption);
     if (isAllmanLambdaBrace(Right))

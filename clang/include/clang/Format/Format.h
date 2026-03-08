@@ -971,6 +971,17 @@ struct FormatStyle {
     ///   auto lambda2 = [](int a) { return a; };
     /// \endcode
     SLS_All,
+    /// Merge lambda into a single line only if it is an argument of a function
+    /// call, regardless of size. Standalone lambdas always break before the
+    /// brace (when ``BeforeLambdaBody`` is set).
+    /// \code
+    ///   auto lambda = [](int x, int y)
+    ///   {
+    ///       return x < y;
+    ///   };
+    ///   sort(a.begin(), a.end(), [](int x, int y) { return x < y; });
+    /// \endcode
+    SLS_InlineOnly,
   };
 
   /// Dependent on the value, ``auto lambda []() { return 0; }`` can be put on a

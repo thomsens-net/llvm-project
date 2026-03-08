@@ -440,8 +440,11 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
   const auto &CurrentState = State.Stack.back();
   if (Style.BraceWrapping.BeforeLambdaBody && Current.CanBreakBefore &&
       Current.is(TT_LambdaLBrace) && Previous.isNot(TT_LineComment)) {
+    auto ColumnLimit = getColumnLimit(State);
+    if (ColumnLimit == 0)
+      return false;
     auto LambdaBodyLength = getLengthToMatchingParen(Current, State.Stack);
-    return LambdaBodyLength > getColumnLimit(State);
+    return LambdaBodyLength > ColumnLimit;
   }
   if (Current.MustBreakBefore ||
       (Current.is(TT_InlineASMColon) &&
