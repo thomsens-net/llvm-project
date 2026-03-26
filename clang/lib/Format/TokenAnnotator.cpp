@@ -6069,6 +6069,13 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
       return true;
     }
 
+    // Wrap braced initializer list after assignment operator onto next line,
+    // but only if the list is multi-line (has newlines inside the braces).
+    if (Style.BraceWrapping.AfterAssignment && Left.is(tok::equal) &&
+        Right.Next && Right.Next->NewlinesBefore > 0) {
+      return true;
+    }
+
     // Don't attempt to interpret struct return types as structs.
     if (Right.isNot(TT_FunctionLBrace)) {
       return (Line.startsWith(tok::kw_class) &&

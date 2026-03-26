@@ -2078,11 +2078,15 @@ void UnwrappedLineParser::parseStructuralElement(
       SeenEqual = true;
       nextToken();
       if (FormatTok->is(tok::l_brace)) {
-        // Block kind should probably be set to BK_BracedInit for any language.
-        // C# needs this change to ensure that array initialisers and object
-        // initialisers are indented the same way.
-        if (Style.isCSharp())
+        // When AfterAssignment brace wrapping is enabled and the braced list
+        // is multi-line, treat '= {' as a block so that Allman-style brace
+        // placement and indentation apply. Single-line lists stay as-is.
+        if (Style.BraceWrapping.AfterAssignment &&
+            Tokens->peekNextToken()->NewlinesBefore > 0) {
+          FormatTok->setBlockKind(BK_Block);
+        } else if (Style.isCSharp()) {
           FormatTok->setBlockKind(BK_BracedInit);
+        }
         // TableGen's defset statement has syntax of the form,
         // `defset <type> <name> = { <statement>... }`
         if (Style.isTableGen() &&

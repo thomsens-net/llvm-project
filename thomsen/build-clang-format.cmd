@@ -1,3 +1,5 @@
 @echo off
 
-devenv LLVM.sln /build Release /project tools\clang\tools\clang-format\clang-format.vcxproj
+cd /d C:\Workspace\Build
+
+cmake --build . --target clang-format --config Release

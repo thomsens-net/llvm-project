@@ -1394,6 +1394,8 @@ struct FormatStyle {
     ///                                           }
     ///                                         }
     /// \endcode
+    bool AfterAssignment;
+    /// Wrap case labels.
     bool AfterCaseLabel;
     /// Wrap class definitions.
     /// \code

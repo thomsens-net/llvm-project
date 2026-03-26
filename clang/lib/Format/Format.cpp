@@ -190,6 +190,7 @@ template <> struct ScalarEnumerationTraits<FormatStyle::BraceBreakingStyle> {
 
 template <> struct MappingTraits<FormatStyle::BraceWrappingFlags> {
   static void mapping(IO &IO, FormatStyle::BraceWrappingFlags &Wrapping) {
+    IO.mapOptional("AfterAssignment", Wrapping.AfterAssignment);
     IO.mapOptional("AfterCaseLabel", Wrapping.AfterCaseLabel);
     IO.mapOptional("AfterClass", Wrapping.AfterClass);
     IO.mapOptional("AfterControlStatement", Wrapping.AfterControlStatement);
@@ -1518,7 +1519,8 @@ std::string ParseErrorCategory::message(int EV) const {
 static void expandPresetsBraceWrapping(FormatStyle &Expanded) {
   if (Expanded.BreakBeforeBraces == FormatStyle::BS_Custom)
     return;
-  Expanded.BraceWrapping = {/*AfterCaseLabel=*/false,
+  Expanded.BraceWrapping = {/*AfterAssignment=*/false,
+                            /*AfterCaseLabel=*/false,
                             /*AfterClass=*/false,
                             /*AfterControlStatement=*/FormatStyle::BWACS_Never,
                             /*AfterEnum=*/false,
@@ -1588,6 +1590,7 @@ static void expandPresetsBraceWrapping(FormatStyle &Expanded) {
     break;
   case FormatStyle::BS_GNU:
     Expanded.BraceWrapping = {
+        /*AfterAssignment=*/true,
         /*AfterCaseLabel=*/true,
         /*AfterClass=*/true,
         /*AfterControlStatement=*/FormatStyle::BWACS_Always,
@@ -1691,7 +1694,8 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.BinPackParameters = FormatStyle::BPPS_BinPack;
   LLVMStyle.BitFieldColonSpacing = FormatStyle::BFCS_Both;
   LLVMStyle.BracedInitializerIndentWidth = -1;
-  LLVMStyle.BraceWrapping = {/*AfterCaseLabel=*/false,
+  LLVMStyle.BraceWrapping = {/*AfterAssignment=*/false,
+                             /*AfterCaseLabel=*/false,
                              /*AfterClass=*/false,
                              /*AfterControlStatement=*/FormatStyle::BWACS_Never,
                              /*AfterEnum=*/false,
