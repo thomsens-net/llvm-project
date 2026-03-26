@@ -441,8 +441,15 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
   if (Style.BraceWrapping.BeforeLambdaBody && Current.CanBreakBefore &&
       Current.is(TT_LambdaLBrace) && Previous.isNot(TT_LineComment)) {
     auto ColumnLimit = getColumnLimit(State);
-    if (ColumnLimit == 0)
+    if (ColumnLimit == 0) {
+      // With no column limit, force Allman if the lambda body was written on
+      // multiple lines (any child has a newline before it). Otherwise permit
+      // single-line formatting.
+      for (const auto *Child : Current.Children)
+        if (Child->First->NewlinesBefore > 0)
+          return true;
       return false;
+    }
     auto LambdaBodyLength = getLengthToMatchingParen(Current, State.Stack);
     return LambdaBodyLength > ColumnLimit;
   }
@@ -2263,11 +2270,19 @@ void ContinuationIndenter::moveStateToNewBlock(LineState &State, bool NewLine) {
   bool NoLineBreak = Style.BraceWrapping.BeforeLambdaBody && !NewLine &&
                      State.NextToken->is(TT_LambdaLBrace);
 
+
   State.Stack.push_back(ParenState(State.NextToken, NewIndent,
                                    State.Stack.back().LastSpace,
                                    /*AvoidBinPacking=*/true, NoLineBreak));
   State.Stack.back().NestedBlockIndent = NestedBlockIndent;
   State.Stack.back().BreakBeforeParameter = true;
+
+  // If BeforeLambdaBody placed the brace on its own line, ensure the closing
+  // brace also goes on its own line (proper Allman style).
+  if (Style.BraceWrapping.BeforeLambdaBody && NewLine &&
+      State.NextToken->is(TT_LambdaLBrace)) {
+    State.Stack.back().BreakBeforeClosingBrace = true;
+  }
 }
 
 static unsigned getLastLineEndColumn(StringRef Text, unsigned StartColumn,

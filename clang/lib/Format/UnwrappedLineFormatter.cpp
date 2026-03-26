@@ -1109,6 +1109,14 @@ protected:
       return true;
     }
 
+    // If BeforeLambdaBody placed the brace on its own line (NoLineBreak is
+    // false), force the body to be formatted as a block too. Otherwise we get
+    // a half-Allman format: brace on new line but body inline.
+    if (!NewLine && Style.BraceWrapping.BeforeLambdaBody &&
+        Previous.is(TT_LambdaLBrace) && !State.Stack.back().NoLineBreak) {
+      NewLine = true;
+    }
+
     if (NewLine || Previous.MacroParent) {
       const ParenState &P = State.Stack.back();
 
