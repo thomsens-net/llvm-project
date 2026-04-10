@@ -123,6 +123,19 @@ ArrayRef<FormatToken *> FormatTokenLexer::lex() {
           FormatOff = FO_CurrentLine;
         }
       }
+
+      // Thomsen //. escape: lines ending with //. are protected from
+      // formatting. When the last token on a line is a comment ending
+      // with //., finalize every token on that line so clang-format
+      // leaves them untouched.
+      if (!FormattingDisabled && Tok.is(tok::comment) &&
+          Tok.TokenText.ends_with("//.")) {
+        for (auto *Token : reverse(Tokens)) {
+          Token->Finalized = true;
+          if (Token->NewlinesBefore > 0)
+            break;
+        }
+      }
     }
     if (Style.isJavaScript()) {
       tryParseJSRegexLiteral();
