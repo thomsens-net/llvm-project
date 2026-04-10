@@ -416,16 +416,66 @@ private:
 };
 
 #define NC_LINE_ESCAPE "//."
-#define NC_LINE_PREFIX "#NC(\""
-#define NC_LINE_ENDING "\")"
+#define NC_GUARD_OFF "// clang-format off:NC"
+#define NC_GUARD_ON "// clang-format on:NC"
 
 struct TokenSet {
   std::unique_ptr<llvm::MemoryBuffer> buffer;
   std::vector<tooling::Replacement> pre;
-  std::vector<tooling::Replacement> post;
+  bool hasGuards = false;
+
+  // Guard insertion tracking for offset translation.
+  struct Guard {
+    size_t modPos;
+    size_t length;
+    bool isOn; // true for on-guard, false for off-guard
+  };
+  std::vector<Guard> guards;
+
+  // Translate offset from modified buffer to original buffer.
+  size_t modToOrig(size_t mod) const {
+    size_t shift = 0;
+    for (const auto &g : guards) {
+      if (g.modPos + g.length <= mod)
+        shift += g.length;
+      else
+        break;
+    }
+    return mod - shift;
+  }
+
+  // Translate offset from original buffer to modified buffer.
+  size_t origToMod(size_t orig) const {
+    size_t shift = 0;
+    for (const auto &g : guards) {
+      // Guard's original position is its modified position minus
+      // cumulative shift from prior guards.
+      if (g.modPos - shift <= orig)
+        shift += g.length;
+      else
+        break;
+    }
+    return orig + shift;
+  }
+
+  // Check if a replacement range [offset, offset+length) overlaps or is
+  // immediately adjacent to a guard region. Extending guard regions by 1
+  // byte before catches replacements that indent guard comment lines.
+  bool touchesGuard(size_t offset, size_t length) const {
+    size_t end = offset + length;
+    for (const auto &g : guards) {
+      size_t gStart = g.modPos > 0 ? g.modPos - 1 : 0;
+      size_t gEnd = g.modPos + g.length;
+      if (offset < gEnd && end > gStart)
+        return true;
+    }
+    return false;
+  }
 };
 
-// tokenize the buffer and provide replacements to reverse
+// Wrap lines ending with //. in clang-format off/on guards so they are
+// preserved verbatim. The guards use the :NC suffix so they can be
+// identified and stripped from the final output via stripNCGuards().
 TokenSet tokenizeEscaped(const llvm::MemoryBuffer &buffer,
                          StringRef &filename) {
   TokenSet tokenSet;
@@ -449,45 +499,50 @@ TokenSet tokenizeEscaped(const llvm::MemoryBuffer &buffer,
     }
   }
 
+  auto isEscapedLine = [](const std::string &l) -> bool {
+    size_t end = l.size();
+    if (end > 0 && l[end - 1] == '\r')
+      end--;
+    return end >= 3 && l.substr(end - 3, 3) == NC_LINE_ESCAPE;
+  };
+
   std::string merged;
+  bool inEscapedGroup = false;
 
-  int escapeLen = std::string(NC_LINE_ESCAPE).size();
-  int prefixLen = std::string(NC_LINE_PREFIX).size();
-  int endingLen = std::string(NC_LINE_ENDING).size();
+  for (size_t i = 0; i < lines.size(); i++) {
+    const auto &l = lines[i];
+    bool escaped = isEscapedLine(l);
 
-  for (const auto &l : lines) {
-    if ((l.size() > (unsigned)(prefixLen + endingLen + 1)) &&
-        ((l.substr(l.size() - 3, escapeLen) == NC_LINE_ESCAPE) ||
-         (l.substr(l.size() - 4, escapeLen) == NC_LINE_ESCAPE))) {
-
-      tokenSet.post.emplace_back(
-          tooling::Replacement(filename, merged.size(), l.size(), l.c_str()));
-
-      std::string dummy = NC_LINE_PREFIX;
-
-      bool cr = l[l.size() - 1] == '\r';
-
-      int begin = prefixLen;
-      int end = l.size() - (endingLen + (cr ? 1 : 0));
-
-      for (int n = begin; n < end; ++n) {
-        dummy += 'x';
-      }
-
-      dummy += NC_LINE_ENDING;
-
-      if (cr) {
-        dummy += '\r';
-      }
-
-      merged += dummy;
-    } else {
-      merged += l;
+    if (escaped && !inEscapedGroup) {
+      size_t guardLen = strlen(NC_GUARD_OFF) + 1; // +1 for \n
+      tokenSet.guards.push_back({merged.size(), guardLen, /*isOn=*/false});
+      merged += NC_GUARD_OFF;
+      merged += '\n';
+      inEscapedGroup = true;
+      tokenSet.hasGuards = true;
     }
 
-    if (&l != &lines.back()) {
+    merged += l;
+
+    bool isLast = (i == lines.size() - 1);
+
+    if (!isLast) {
       merged += '\n';
-    } else if (!l.empty()) {
+    }
+
+    if (escaped) {
+      bool nextEscaped = !isLast && isEscapedLine(lines[i + 1]);
+      if (!nextEscaped && !isLast) {
+        // The line's own \n was already emitted above.
+        size_t guardLen = strlen(NC_GUARD_ON) + 1;
+        tokenSet.guards.push_back({merged.size(), guardLen, /*isOn=*/true});
+        merged += NC_GUARD_ON;
+        merged += '\n';
+        inEscapedGroup = false;
+      }
+    }
+
+    if (isLast && !l.empty()) {
       if (cr_count && ((cr_count * 100 / l.size()) > 50)) {
         tokenSet.pre.emplace_back(
             tooling::Replacement(filename, merged.size(), 0, "\r\n"));
@@ -505,6 +560,35 @@ TokenSet tokenizeEscaped(const llvm::MemoryBuffer &buffer,
   tokenSet.buffer.reset(new StringMemoryBuffer(merged));
 
   return tokenSet;
+}
+
+// Strip lines containing NC guard markers from formatted output.
+static std::string stripNCGuards(StringRef Text) {
+  std::string Result;
+  Result.reserve(Text.size());
+
+  size_t Pos = 0;
+  while (Pos < Text.size()) {
+    size_t EOL = Text.find('\n', Pos);
+    if (EOL == StringRef::npos)
+      EOL = Text.size();
+
+    StringRef Line = Text.slice(Pos, EOL);
+    StringRef Trimmed = Line.ltrim();
+
+    bool IsGuard = Trimmed.starts_with(NC_GUARD_OFF) ||
+                   Trimmed.starts_with(NC_GUARD_ON);
+
+    if (!IsGuard) {
+      Result += Line;
+      if (EOL < Text.size())
+        Result += '\n';
+    }
+
+    Pos = EOL < Text.size() ? EOL + 1 : Text.size();
+  }
+
+  return Result;
 }
 
 // Returns true on error.
@@ -527,6 +611,9 @@ static bool format(StringRef FileName, bool ErrorOnIncompleteFormat = false) {
   // moved up from below
   StringRef AssumedFileName = IsSTDIN ? AssumeFileName : FileName;
 
+  // Save original file content for later comparison.
+  std::string OriginalCode = CodeOrErr.get()->getBuffer().str();
+
   // tokenize
   auto tokenPair = tokenizeEscaped(*CodeOrErr.get(), AssumedFileName);
 
@@ -547,6 +634,13 @@ static bool format(StringRef FileName, bool ErrorOnIncompleteFormat = false) {
       errs() << " in file '" << FileName << "'";
     errs() << ".\n";
     return true;
+  }
+
+  // When guards were inserted, translate VS-provided offsets from original
+  // buffer positions to modified buffer positions.
+  if (tokenPair.hasGuards) {
+    for (unsigned I = 0, E = Offsets.size(); I < E; ++I)
+      Offsets[I] = tokenPair.origToMod(Offsets[I]);
   }
 
   std::vector<tooling::Range> Ranges;
@@ -593,6 +687,9 @@ static bool format(StringRef FileName, bool ErrorOnIncompleteFormat = false) {
       FormatStyle->SortIncludes.Enabled = true;
   }
   unsigned CursorPosition = Cursor;
+  // Translate cursor from original to modified buffer position.
+  if (tokenPair.hasGuards && Cursor.getNumOccurrences() != 0)
+    CursorPosition = tokenPair.origToMod(CursorPosition);
   Replacements Replaces = sortIncludes(*FormatStyle, Code->getBuffer(), Ranges,
                                        AssumedFileName, &CursorPosition);
 
@@ -625,43 +722,117 @@ static bool format(StringRef FileName, bool ErrorOnIncompleteFormat = false) {
       Replaces.add(replacement);
     }
 
-    if (DryRun) {
-      return Replaces.size() > (IsJson ? 1u : 0u) &&
-             emitReplacementWarnings(Replaces, AssumedFileName, Code);
-    }
-    outputXML(Replaces, FormatChanges, Status, Cursor, CursorPosition);
-  } else {
-    // for each token replacement...
-    for (auto &replacement : tokenPair.post) {
-      Replaces.add(replacement);
-    }
-    auto InMemoryFileSystem =
-        makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
-    FileManager Files(FileSystemOptions(), InMemoryFileSystem);
+    // Translate replacement offsets from modified to original buffer
+    // positions, filtering out replacements that affect guard regions.
+    // Special case: a replacement at an on-guard's trailing \n indents
+    // the line after the guard group — translate it to the original \n
+    // position instead of filtering it.
+    Replacements OutputReplaces = Replaces;
+    if (tokenPair.hasGuards) {
+      StringRef OrigRef(OriginalCode);
+      OutputReplaces = Replacements();
+      for (const auto &R : Replaces) {
+        // Check if this replacement targets an on-guard's trailing \n.
+        bool translated = false;
+        for (const auto &g : tokenPair.guards) {
+          if (g.isOn && R.getOffset() == g.modPos + g.length - 1 &&
+              R.getLength() == 1) {
+            // Translate to the original \n before the guard insertion point.
+            unsigned OrigOffset = tokenPair.modToOrig(g.modPos) - 1;
+            unsigned OrigLen = 1;
+            // In CRLF files, the \r before \n is part of the line ending.
+            // Include it in the replacement range to avoid producing \r\r\n
+            // when the replacement text itself starts with \r\n.
+            if (OrigOffset > 0 && OriginalCode[OrigOffset - 1] == '\r') {
+              OrigOffset--;
+              OrigLen = 2;
+            }
+            // Skip no-op replacements (e.g. replacing \r\n with \r\n).
+            if (OrigRef.substr(OrigOffset, OrigLen) ==
+                R.getReplacementText()) {
+              translated = true;
+              break;
+            }
+            auto Err = OutputReplaces.add(tooling::Replacement(
+                R.getFilePath(), OrigOffset, OrigLen,
+                R.getReplacementText()));
+            if (Err)
+              llvm::consumeError(std::move(Err));
+            translated = true;
+            break;
+          }
+        }
+        if (translated)
+          continue;
 
-    DiagnosticOptions DiagOpts;
-    ClangFormatDiagConsumer IgnoreDiagnostics;
-    DiagnosticsEngine Diagnostics(DiagnosticIDs::create(), DiagOpts,
-                                  &IgnoreDiagnostics, false);
-    SourceManager Sources(Diagnostics, Files);
-    FileID ID = createInMemoryFile(AssumedFileName, *Code, Sources, Files,
-                                   InMemoryFileSystem.get());
-    Rewriter Rewrite(Sources, LangOptions());
-    tooling::applyAllReplacements(Replaces, Rewrite);
+        if (tokenPair.touchesGuard(R.getOffset(), R.getLength()))
+          continue;
+        unsigned OrigOffset = tokenPair.modToOrig(R.getOffset());
+        unsigned OrigEnd =
+            tokenPair.modToOrig(R.getOffset() + R.getLength());
+        // Skip no-op replacements.
+        if (OrigRef.substr(OrigOffset, OrigEnd - OrigOffset) ==
+            R.getReplacementText())
+          continue;
+        auto Err = OutputReplaces.add(tooling::Replacement(
+            R.getFilePath(), OrigOffset, OrigEnd - OrigOffset,
+            R.getReplacementText()));
+        if (Err)
+          llvm::consumeError(std::move(Err));
+      }
+    }
+
+    if (DryRun) {
+      return OutputReplaces.size() > (IsJson ? 1u : 0u) &&
+             emitReplacementWarnings(OutputReplaces, AssumedFileName, Code);
+    }
+
+    // Translate cursor position through guard offsets.
+    unsigned XmlCursorPosition = CursorPosition;
+    if (tokenPair.hasGuards && Cursor.getNumOccurrences() != 0) {
+      unsigned ModCursor = tokenPair.origToMod(CursorPosition);
+      unsigned ShiftedMod = FormatChanges.getShiftedCodePosition(ModCursor);
+      XmlCursorPosition = tokenPair.modToOrig(ShiftedMod);
+    }
+    outputXML(OutputReplaces, FormatChanges, Status, Cursor,
+              XmlCursorPosition);
+  } else {
+    // Apply all format replacements to produce the final text, then strip
+    // any NC guard lines that were inserted to protect //. lines.
+    auto Result = tooling::applyAllReplacements(Code->getBuffer(), Replaces);
+    if (!Result) {
+      llvm::errs() << llvm::toString(Result.takeError()) << "\n";
+      return true;
+    }
+
+    std::string FinalText = tokenPair.hasGuards
+                                ? stripNCGuards(StringRef(*Result))
+                                : std::move(*Result);
+
     if (Inplace) {
-      if (Rewrite.overwriteChangedFiles())
-        return true;
+      if (FinalText != OriginalCode) {
+        std::error_code EC;
+        llvm::raw_fd_ostream FileOS(FileName, EC, llvm::sys::fs::OF_None);
+        if (EC) {
+          llvm::errs() << FileName << ": " << EC.message() << "\n";
+          return true;
+        }
+        FileOS << FinalText;
+      }
     } else {
       if (Cursor.getNumOccurrences() != 0) {
-        outs() << "{ \"Cursor\": "
-               << FormatChanges.getShiftedCodePosition(CursorPosition)
+        unsigned ShiftedCursor =
+            FormatChanges.getShiftedCodePosition(CursorPosition);
+        if (tokenPair.hasGuards)
+          ShiftedCursor = tokenPair.modToOrig(ShiftedCursor);
+        outs() << "{ \"Cursor\": " << ShiftedCursor
                << ", \"IncompleteFormat\": "
                << (Status.FormatComplete ? "false" : "true");
         if (!Status.FormatComplete)
           outs() << ", \"Line\": " << Status.Line;
         outs() << " }\n";
       }
-      Rewrite.getEditBuffer(ID).write(outs());
+      outs() << FinalText;
     }
   }
   return ErrorOnIncompleteFormat && !Status.FormatComplete;
